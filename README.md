@@ -2,19 +2,21 @@
 
 Ce dépôt contient les données utilisées dans les documents suivants : 
 
-- Géomatique avec R
-- Cartographie avec R
+- [Géomatique avec R](https://rcarto.github.io/geomatique_avec_r/)
+- [Cartographie avec R](https://rcarto.github.io/cartographie_avec_r/)
 
 
-Pour utiliser les données il suffit de télécharger le dépôt puis de le décompresser. Vous pourrez ensuite jouer l'ensemble des exemples proposés dans ces documents. 
+Pour utiliser les données il suffit de télécharger le dépôt puis de le décompresser. Vous pourrez ensuite jouer l'ensemble des exemples proposés. 
+Les données sources sont lourdes et ne sont pas proposées en téléchargement ici. Vous trouverez plus bas le script utilisé pour préparer les données. 
 
+## Les communes et les routes
 
-Voici comment ont-été constituées les données proposées. Les données sources sont lourdes et ne sont pas 
+Dans cette partie on prépare les données sur les géométries des communes et des routes du Lot (46) 
 
-## Constitution de la base de données vectorielle
+Source : [Admin Express COG Carto 3.0, IGN - 2021](https://geoservices.ign.fr/adminexpress) & [BD CARTO® 4.0, IGN - 2021](https://geoservices.ign.fr/bdcarto)
 
-Source : BD Carto & ADMIN Express
 ```r
+# Import des données brutes
 library(sf)
 dep_raw <- st_read("data-raw/ADECOGC_3-0_SHP_LAMB93_FR/DEPARTEMENT.shp")
 road_raw <- st_read("data-raw/BDC_4-0_SHP_LAMB93_R76-ED211/RESEAU_ROUTIER/TRONCON_ROUTE.shp")
@@ -25,21 +27,17 @@ dep <- dep_raw[dep_raw$INSEE_DEP=="46", ]
 com <- com_raw[com_raw$INSEE_DEP=="46", ]
 road <- road_raw[st_intersects(road_raw, dep, sparse = FALSE), ]
 road <- road[!road$VOCATION %in% c("Bretelle", "Piste cyclable"),]
-```
 
-Source : BPE, INSEE
+st_write(obj = dep_raw, dsn = "data/lot46.gpkg", layer = "departement", delete_layer = T)
+st_write(obj = road, dsn = "data/lot46.gpkg", layer = "route", delete_layer = T)
+```
+## Données sur la population active occupée
+
+Ici nous allons rajouter des données sur la poulation active occupée âgée de 25 à 54 ans, par secteur d'activité et sexe, au lieu de résidence 
+
+Source : [Recensements harmonisés - Séries départementales et communales, INSEE - 2020](https://www.insee.fr/fr/statistiques/1893185)
 
 ```r
-
-# restaurant
-## from https://www.insee.fr/fr/statistiques/3568638?sommaire=3568656
-bpe_raw <- read.csv("data-raw/bpe20_ensemble_xy_csv/bpe20_ensemble_xy.csv", sep = ";")
-bpe_restau <- bpe_raw[bpe_raw$TYPEQU == "A504", ]
-bpe_restau <- bpe_restau[!is.na(bpe_restau$LAMBERT_X),]
-restau_raw <- st_as_sf(bpe_restau, coords = c("LAMBERT_X", "LAMBERT_Y"), crs = st_crs(dep))
-restau <- restau_raw[st_intersects(restau_raw, st_buffer(dep[dep$INSEE_DEP==46,], 50000), sparse = F),]
-
-
 # POPULATION ACTIVE OCCUPĖE ÂGĖE DE 25 À 54 ANS, PAR SECTEUR D'ACTIVITĖ ET SEXE - AU LIEU DE RĖSIDENCE
 library(readxl)
 dd <- data.frame(read_xls("data-raw/pop-act2554-empl-sa-sexe-cd-6817.xls", sheet = "COM_2017", skip = 15))
@@ -47,18 +45,35 @@ dd$INSEE_COM <- paste0(dd$DR, dd$CR)
 names(dd)[7:14] <- c("AGR_H", "AGR_F", "IND_H", "IND_F", "BTP_H", "BTP_F", "TER_H", "TER_F")
 com <- com[, c("INSEE_COM", "NOM_COM", "STATUT", "POPULATION")]
 com <- merge(com, dd[, 7:15], by = "INSEE_COM", all.x = T)
-
-
-
-st_write(obj = dep_raw, dsn = "data/lot46.gpkg", layer = "departement", delete_layer = T)
 st_write(obj = com, dsn = "data/lot46.gpkg", layer = "commune", delete_layer = T)
-st_write(obj = road, dsn = "data/lot46.gpkg", layer = "route", delete_layer = T)
-st_write(obj = restau, dsn = "data/lot46.gpkg", layer = "restaurant", delete_layer = T)
+```
 
 
+## Données sur les restaurants
+
+Nous allons ensuite créer une couche des restaurants 
+
+Source : [Base permanente des équipements (BPE), INSEE - 2021](https://www.insee.fr/fr/statistiques/3568638?sommaire=3568656)
 
 
-# la grille de pop
+```r
+bpe_raw <- read.csv("data-raw/bpe20_ensemble_xy_csv/bpe20_ensemble_xy.csv", sep = ";")
+bpe_restau <- bpe_raw[bpe_raw$TYPEQU == "A504", ]
+bpe_restau <- bpe_restau[!is.na(bpe_restau$LAMBERT_X),]
+restau_raw <- st_as_sf(bpe_restau, coords = c("LAMBERT_X", "LAMBERT_Y"), 
+                       crs = st_crs(dep))
+restau <- restau_raw[st_intersects(restau_raw, st_buffer(dep[dep$INSEE_DEP==46,], 50000), sparse = F),]
+st_write(obj = restau, dsn = "data/lot46.gpkg", layer = "restaurant", delete_layer = T)                                   
+```
+
+
+## Grille de population
+
+Nous allons traiter ici la grille de population de l'INSEE. 
+
+Source : [Données carroyées – Carreau de 1km, INSEE - 2019](https://www.insee.fr/fr/statistiques/4176293?sommaire=4176305)
+
+```r
 library(sf)
 dep <- st_read('data/lot46.gpkg', layer = "departement")
 g <- st_read("data-raw/Filosofi2015_carreaux_1000m_gpkg/Filosofi2015_carreaux_1000m_metropole_gpkg/Filosofi2015_carreaux_1000m_metropole.gpkg")
@@ -66,6 +81,8 @@ dep <- st_transform(dep[dep$INSEE_DEP == 46, ], 3035)
 g <- st_transform(g, 3035)
 gg <- g[st_intersects(g, st_as_sfc(st_bbox(st_buffer(dep, 50000))),
                       sparse = F), ]
+                      
+# export vectoriel
 st_write(obj = gg, dsn = "data/grid46.gpkg", layer = "grid", delete_layer = T)
 
 
@@ -79,11 +96,18 @@ grid <- merge(to,gg, by = "Id_carr1km", all.x = T )
 library(terra)
 r <- rast(grid[2:4], type = "xyz")
 crs(r) <- "epsg:3035"
+
+# export raster
 terra::writeRaster(r, "data/pop.tif", overwrite = TRUE)
+```
 
 
+## Données altimétriques
 
 
+Source : [SRTM, depuis le package `elevatr`](https://github.com/jhollist/elevatr/)
+
+```r
 library(elevatr)
 library(sf)
 dep <- st_read('data/lot46.gpkg', layer = "departement")
@@ -91,5 +115,5 @@ dep46 <- dep[dep$INSEE_DEP=="46", ]
 elev <- get_elev_raster(st_transform(dep46, 4326), z = 11, clip="bbox")
 elev <- terra::rast(elev)
 terra::writeRaster(elev, "data/elevation.tif", overwrite = TRUE)
-
 ```
+
