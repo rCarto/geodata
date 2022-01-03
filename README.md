@@ -117,3 +117,67 @@ elev <- terra::rast(elev)
 terra::writeRaster(elev, "data/elevation.tif", overwrite = TRUE)
 ```
 
+## Données CORINE Land Cover
+
+Source : [Corine Land Cover (CLC) 2018, Version 2020_20u1 - Copernicus Programme](https://land.copernicus.eu/pan-european/corine-land-cover/clc2018?tab=download)
+
+```r
+library(terra)
+# Import du raster
+CLC2018 <- rast("/home/hugues/Bureau/geomatique_avec_r/hugues/u2018_clc2018_v2020_20u1_raster100m/DATA/U2018_CLC2018_V2020_20u1.tif")
+
+# Import de données vectorielles
+commune <- vect("data/lot46.gpkg", layer="commune")
+
+# Agrégation communes du Lot
+lot46 <-  aggregate(commune)
+
+# (Re)projection
+lot46_LAEA <- project(x= lot46, y = CLC2018)
+
+# Découpage du CLC2018 par les limites départementales du Lot
+CLC_lot <- crop(CLC2018, lot46_LAEA)
+
+## Recodage des types d'occupation du sol
+reclassif <- matrix(c(1,1,111,2,2,112,3,3,121,4,4,122,5,5,123,6,6,124,7,7,131,
+                      8,8,132,9,9,133,10,10,141,11,11,142,12,12,211,13,13,212,
+                      14,14,213,15,15,221,16,16,222,17,17,223,18,18,231,
+                      19,19,241,20,20,242,21,21,243,22,22,244,23,23,311,
+                      24,24,312,25,25,313,26,26,321,27,27,322,28,28,323,
+                      29,29,324,30,30,331,31,31,332,32,32,333,33,33,334,
+                      34,34,335,35,35,411,36,36,412,37,37,421,38,38,422,
+                      39,39,423,40,40,511,41,41,512,42,42,521,43,43,522,
+                      44,44,523,48,48,NA),
+                    ncol = 3, byrow = TRUE)
+
+# Reclassification
+CLC_lot_2 <- classify(CLC_lot, rcl = reclassif, right = NA)
+names(CLC_lot_2) <- "CLC2018"
+
+# Enregistrement
+writeRaster(x = CLC_lot_2, filename = "data/CLC2018_Lot.tif", overwrite=TRUE)
+```
+
+
+## Données Sentinel-2 
+
+Source : [Sentinel, *Sentinel-2A*, S2A_OPER_MSI_L2A_DS_VGS2_20211012T140548_S20211012T105447_N03.01, 12 Octobre 2021 - Copernicus Programme](https://scihub.copernicus.eu/dhus/#/home), téléchargé le 28 décembre 2021.
+
+```r
+library(terra)
+# Import des bandes spectrales rouge et proche infra-rouge
+B04_R <- rast("/home/hugues/Bureau/geomatique_avec_r/hugues/S2A_MSIL2A_20211012T105011_N0301_R051_T31TCK_20211012T140548.SAFE/T31TCK_20211012T105011_B04_10m.jp2")
+B08_IR <- rast("/home/hugues/Bureau/geomatique_avec_r/hugues/S2A_MSIL2A_20211012T105011_N0301_R051_T31TCK_20211012T140548.SAFE/T31TCK_20211012T105011_B08_10m.jp2")
+
+# Import de données vectorielles
+commune <- vect("data/lot46.gpkg", layer="commune")
+cahors <- subset(commune, commune$INSEE_COM == "46042") 
+
+Sentinel2A <- c(B04_R, B08_IR)
+Sentinel2A_L93 <- project(x= Sentinel2A, y = commune, method = "near")
+
+Sentinel2A_cahors <- crop(Sentinel2A_L93, cahors)
+
+writeRaster(x = Sentinel2A_cahors, filename = "data/Sentinel2A.tif")
+```
+
