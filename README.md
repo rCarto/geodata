@@ -78,17 +78,17 @@ Source : [Données carroyées – Carreau de 1km, INSEE - 2019](https://www.inse
 
 ```r
 library(sf)
+library(terra)
 dep <- st_read('data/lot46.gpkg', layer = "departement")
 g <- st_read("data-raw/Filosofi2015_carreaux_1000m_gpkg/Filosofi2015_carreaux_1000m_metropole_gpkg/Filosofi2015_carreaux_1000m_metropole.gpkg")
 dep <- st_transform(dep[dep$INSEE_DEP == 46, ], 3035)
 g <- st_transform(g, 3035)
 gg <- g[st_intersects(g, st_as_sfc(st_bbox(st_buffer(dep, 50000))),
                       sparse = F), ]
-                      
 # export vectoriel
 st_write(obj = gg, dsn = "data/grid46.gpkg", layer = "grid", delete_layer = T)
 
-
+# export tif
 XY  <- data.frame(Id_carr1km = gg$Id_carr1km, st_coordinates( st_centroid(gg)))
 XY$X <- round(XY$X, 0)
 XY$Y <- round(XY$Y, 0)
@@ -96,12 +96,19 @@ aa <- expand.grid(X = seq(min(XY$X), max(XY$X), 1000),
                   Y = seq(min(XY$Y), max(XY$Y), 1000))
 to <- merge(aa, XY, by = c("X", "Y"), all.x  = TRUE)
 grid <- merge(to,gg, by = "Id_carr1km", all.x = T )
-library(terra)
 r <- rast(grid[2:4], type = "xyz")
 crs(r) <- "epsg:3035"
-
 # export raster
 terra::writeRaster(r, "data/pop.tif", overwrite = TRUE)
+
+# export csv
+# découpage selon l'emprise du departement
+rpop <- trim(mask(r, vect(dep)))
+# transformation en data.frame
+pop <- as.data.frame(rpop, xy = TRUE)
+pop <- pop[order(pop$y), ]
+write.csv(pop, file = "data/pop.csv", row.names = FALSE)
+
 ```
 
 
