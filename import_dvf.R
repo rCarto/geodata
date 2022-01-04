@@ -1,22 +1,17 @@
 library(sf)
-
-
+# import des communes
 com_raw <- st_read("data-raw/ADECOGC_3-0_SHP_LAMB93_FR/COMMUNE.shp")
 com <- com_raw[com_raw$INSEE_COM %in% c("94080", "93048"), ]
 st_write(obj = com, dsn = paste0("data/dvf.gpkg"), layer = "com",
          delete_layer = TRUE, quiet = TRUE)
-
-
 dvf_url <- "https://files.data.gouv.fr/geo-dvf/latest/csv/%s/communes/%s/%s.csv"
 dvf_file <- "data-raw/dvf/%s_%s.csv"
-
 for (i in 2016:2021){
   download.file(
     url = sprintf(dvf_url, i, 94, 94080),
     destfile = sprintf(dvf_file, i, 94080)
   )
 }
-
 for (i in 2016:2021){
   download.file(
     url = sprintf(dvf_url, i, 93, 93048),
@@ -72,7 +67,7 @@ apt$prix <- apt$valeur_fonciere / apt$surface_reelle_bati
 qt <- quantile(apt$prix,probs = seq(0,1,.01), na.rm = T)
 apt <- apt[!is.na(apt$prix) &  apt$prix<qt[96] & apt$prix>qt[4], ]
 
-apt <- st_jitter(apt, amount = 5)
+apt <- st_jitter(apt, amount = 15)
 
 
 st_write(obj = apt, dsn = paste0("data/dvf.gpkg"), layer = "dvf",
@@ -165,10 +160,10 @@ com <- st_read("data/dvf.gpkg", layer = "com")
 parc <- st_read("data/dvf.gpkg", layer = "parc")
 route <- st_read("data/dvf.gpkg", layer = "route")
 rail <- st_read("data/dvf.gpkg", layer = "rail")
+apt <- st_read("data/dvf.gpkg", layer = "dvf")
 
 
-
-x <- st_make_grid(com, cellsize = 100, square = FALSE)
+x <- st_make_grid(com, cellsize = 200, square = TRUE)
 x <- st_sf(geometry = x)
 x <- x[com, ]
 x$idgrid <- 1:nrow(x)
@@ -180,10 +175,11 @@ xx <- merge(x, rr, by= "idgrid", all.x = T)
 
 
 mf_export(com, theme = "darkula", width = 1000 )
-mf_map(xx[xx$n>=5, ], "prixmed", "choro",
+mf_map(xx[xx$n>=10, ], "prixmed", "choro",
        add = T, border = NA,
        leg_pos = "topright",nbreaks = 20
        )
+mf_map(com)
 mf_map(parc, col = "grey7", border = "grey7", add=T)
 mf_map(route, lwd = .2, col ="#b5b3b5", add=T )
 mf_map(rail, lwd = .2, col ="#b5b3b5", add=T, lty = 2 )
