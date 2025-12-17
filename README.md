@@ -1,6 +1,6 @@
 # geodata
 
-Ce dépôt contient les données utilisées dans [Géomatique et cartpgraphie avec R](https://rgeocarto.github.io/).
+Ce dépôt contient les données utilisées dans [Géomatique et cartographie avec R](https://rgeocarto.github.io/).
 
 Les données sont stockées dans un projet RStudio. 
 
